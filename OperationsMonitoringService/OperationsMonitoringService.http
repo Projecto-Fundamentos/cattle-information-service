@@ -1,0 +1,24 @@
+@baseUrl = http://localhost:5188
+
+### Health
+GET {{baseUrl}}/health
+
+### Ingest a reading that raises a fever alert
+POST {{baseUrl}}/api/v1/telemetry
+Content-Type: application/json
+
+{
+  "deviceId": "550e8400-e29b-41d4-a716-446655440000",
+  "cattleId": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+  "bodyTemperature": 40.2,
+  "activityIndex": 12,
+  "ruminationMinutes": 180,
+  "latitude": -13.656,
+  "longitude": -73.388,
+  "batteryLevel": 86,
+  "recordedAt": "2026-10-09T14:30:00Z",
+  "origin": "DirectFromDevice"
+}
+
+### List active alerts
+GET {{baseUrl}}/api/v1/alerts?status=ACTIVE&limit=20
