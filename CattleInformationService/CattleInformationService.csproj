@@ -30,7 +30,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="CattleInformation\Application\" />
+      <Folder Include="CattleInformation\Domain\Model\Queries\" />
     </ItemGroup>
 
 </Project>
