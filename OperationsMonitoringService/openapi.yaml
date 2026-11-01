@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: ICHU Operations and Monitoring API
+  version: 1.1.0
+  description: |
+    Receives bovine telemetry and lists fever alerts. This contract preserves the
+    existing /api/v1 routes, camelCase fields, status codes and error bodies.
+    Outside Development, API requests require X-API-Key. Development is a local
+    demonstration only. No per-user, role or ranch authorization is implemented.
+    A cattleId/deviceId is not yet checked against the inventory services.
+servers:
+  - url: /
+security:
+  - ServiceApiKey: []
+paths:
+  /api/v1/telemetry:
+    post:
+      operationId: ingestTelemetry
+      summary: Ingest temperature activity and GPS telemetry
+      description: |
+        A temperature strictly above the configured threshold (default 39.5 C)
+        creates a FEVER alert or updates an active one started within the previous
+        six hours of recordedAt. This is a prototype rule, not a diagnosis.
+        The permanent retry key is (deviceId, recordedAt normalized to UTC and
+        PostgreSQL microsecond precision). An identical retry returns the original
+        readingId and duplicate=true; it never increments readingCount.
+        Reusing that key with different values returns 409.
+        Reading and alert changes are atomic in PostgreSQL. Writes for one bovine
+        are serialized across service instances to prevent lost alert counts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryRequest'
+            example:
+              deviceId: 550e8400-e29b-41d4-a716-446655440000
+              cattleId: a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d
+              bodyTemperature: 40.2
+              activityIndex: 12
+              latitude: -13.656
+              longitude: -73.388
+              recordedAt: '2026-11-01T12:00:00Z'
+              origin: EdgeGateway
+      responses:
+        '201':
+          description: New reading stored; alertRaised says whether a NEW alert was opened
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelemetryResponse' }
+        '200':
+          description: Identical retry; same readingId, duplicate true and alertRaised false
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TelemetryResponse' }
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Missing or incorrect service API key outside Development; empty body
+        '409':
+          description: Retry key already belongs to different values
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LegacyError' }
+        '415':
+          description: Unsupported request Content-Type
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblem' }
+  /api/v1/alerts:
+    get:
+      operationId: listAlerts
+      summary: List active fever alerts
+      description: |
+        Defaults to ACTIVE alerts, ordered by creation time descending then ID
+        descending. Returns a JSON array, including [] when empty. Offset paging
+        is additive to the existing bounded list. Concurrent insertions can shift
+        offsets; this endpoint does not provide snapshot pagination.
+      parameters:
+        - name: cattleId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, ALL], default: ACTIVE }
+        - name: limit
+          in: query
+          schema: { type: integer, format: int32, minimum: 1, maximum: 100, default: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, format: int32, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Matching alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Alert' }
+        '400':
+          description: Invalid UUID/integer binding or invalid status, limit or offset
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LegacyError' }
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblem' }
+        '401':
+          description: Missing or incorrect service API key outside Development; empty body
+  /health:
+    get:
+      operationId: health
+      summary: Check the monitoring data provider
+      security: []
+      responses:
+        '200':
+          description: Data provider responds; in-memory health does not prove durability
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, enum: [Healthy] }
+        '503':
+          description: Database unavailable
+          content:
+            application/problem+json:
+              schema: { $ref: '#/components/schemas/ValidationProblem' }
+components:
+  securitySchemes:
+    ServiceApiKey:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: Service credential required outside Development; not user or ranch authorization
+  responses:
+    ValidationError:
+      description: Invalid or missing telemetry fields, malformed JSON or invalid date
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/ValidationProblem' }
+  schemas:
+    TelemetryRequest:
+      type: object
+      required: [deviceId, cattleId, bodyTemperature, activityIndex, latitude, longitude, recordedAt]
+      properties:
+        deviceId: { type: string, format: uuid, description: Nonzero device UUID }
+        cattleId: { type: string, format: uuid, description: Nonzero bovine UUID }
+        bodyTemperature: { type: number, format: double, minimum: 30, maximum: 45 }
+        activityIndex: { type: number, format: double, minimum: 0, maximum: 100 }
+        ruminationMinutes: { type: integer, format: int32, nullable: true, minimum: 0, maximum: 1440 }
+        latitude: { type: number, format: double, minimum: -90, maximum: 90 }
+        longitude: { type: number, format: double, minimum: -180, maximum: 180 }
+        batteryLevel: { type: number, format: double, nullable: true, minimum: 0, maximum: 100 }
+        origin: { type: string, enum: [DirectFromDevice, EdgeGateway], default: DirectFromDevice }
+        recordedAt:
+          type: string
+          format: date-time
+          description: Required; at most five minutes in the future; stored in UTC at microsecond precision
+    TelemetryResponse:
+      type: object
+      required: [readingId, alertRaised, alertId, alertType, duplicate]
+      properties:
+        readingId: { type: string, format: uuid }
+        alertRaised: { type: boolean }
+        alertId: { type: string, format: uuid, nullable: true }
+        alertType: { type: string, nullable: true, example: Fever }
+        duplicate: { type: boolean }
+    Alert:
+      type: object
+      required: [id, cattleId, type, status, temperature, threshold, readingCount, startedAtUtc, lastObservedAtUtc]
+      properties:
+        id: { type: string, format: uuid }
+        cattleId: { type: string, format: uuid }
+        type: { type: string, example: FEVER }
+        status: { type: string, example: ACTIVE }
+        temperature: { type: number, format: double }
+        threshold: { type: number, format: double }
+        readingCount: { type: integer, format: int32, minimum: 1 }
+        startedAtUtc: { type: string, format: date-time }
+        lastObservedAtUtc: { type: string, format: date-time }
+    LegacyError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
+    ValidationProblem:
+      type: object
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, format: int32 }
+        detail: { type: string }
+        instance: { type: string }
+        traceId: { type: string }
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items: { type: string }
