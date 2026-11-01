@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Text.Json.Serialization;
 
 namespace OperationsMonitoringService.Contracts;
 
@@ -7,30 +8,31 @@ public sealed class TelemetryIngestRequest : IValidatableObject
     public Guid DeviceId { get; init; }
     public Guid CattleId { get; init; }
 
-    [Range(30, 45)]
+    [Range(typeof(decimal), "30", "45")]
     public decimal BodyTemperature { get; init; }
 
     [Required]
-    [Range(0, 100)]
+    [Range(typeof(decimal), "0", "100")]
     public decimal? ActivityIndex { get; init; }
 
     [Range(0, 1440)]
     public int? RuminationMinutes { get; init; }
 
     [Required]
-    [Range(-90, 90)]
+    [Range(-90.0, 90.0)]
     public double? Latitude { get; init; }
 
     [Required]
-    [Range(-180, 180)]
+    [Range(-180.0, 180.0)]
     public double? Longitude { get; init; }
 
-    [Range(0, 100)]
+    [Range(typeof(decimal), "0", "100")]
     public decimal? BatteryLevel { get; init; }
 
     [MaxLength(32)]
     public string Origin { get; init; } = "DirectFromDevice";
 
+    [JsonConverter(typeof(RecordedAtJsonConverter))]
     public DateTimeOffset RecordedAt { get; init; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
