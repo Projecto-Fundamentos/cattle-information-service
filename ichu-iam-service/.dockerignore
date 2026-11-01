@@ -1,0 +1,11 @@
+target
+.git
+.env
+data
+.idea
+
+*service-account*.json
+firebase-admin.json
+validation.log
+
+.firebase-emulator/

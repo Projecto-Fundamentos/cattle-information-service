@@ -1,0 +1,28 @@
+spring:
+  jackson:
+    deserialization:
+      accept-float-as-int: false
+      fail-on-unknown-properties: true
+  application:
+    name: ichu-iam-service
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/ichu}
+    username: ${DB_USER:ichu}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.default_schema: iam
+  flyway:
+    schemas: iam
+    default-schema: iam
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+app:
+  firebase:
+    project-id: ${FIREBASE_PROJECT_ID:}
