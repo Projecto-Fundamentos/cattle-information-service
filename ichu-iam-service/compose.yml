@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ichu
+      POSTGRES_USER: ichu
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - iam-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ichu -d ichu"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+  iam:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/ichu
+      DB_USER: ichu
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:?Set FIREBASE_PROJECT_ID in .env}
+      GOOGLE_APPLICATION_CREDENTIALS: /run/secrets/firebase-admin.json
+    volumes:
+      - ${FIREBASE_CREDENTIALS_FILE:?Set an absolute credentials file path}:/run/secrets/firebase-admin.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  iam-data:

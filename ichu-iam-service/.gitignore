@@ -1,0 +1,13 @@
+target/
+data/
+.env
+.idea/
+*.iml
+.vscode/
+validation.log
+*service-account*.json
+firebase-admin.json
+firebase-debug.log
+ui-debug.log
+
+.firebase-emulator/

@@ -1,0 +1,52 @@
+@baseUrl = http://localhost:8080
+@firebaseIdToken = paste-a-firebase-id-token-here
+
+### 1. Create a test Firebase user in the local emulator (NOT production).
+POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signUp?key=demo-key
+Content-Type: application/json
+
+{
+  "email": "diego@example.com",
+  "password": "MiClaveSegura2026!",
+  "returnSecureToken": true
+}
+
+### 2. Firebase email/password sign-in (emulator); copy idToken above.
+POST http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=demo-key
+Content-Type: application/json
+
+{
+  "email": "diego@example.com",
+  "password": "MiClaveSegura2026!",
+  "returnSecureToken": true
+}
+
+### 3. Register local IAM account, ranch and Owner membership.
+POST {{baseUrl}}/api/v1/ranch-units
+Authorization: Bearer {{firebaseIdToken}}
+Content-Type: application/json
+
+{
+  "name": "Fundo San José",
+  "region": "Apurímac",
+  "district": "Andahuaylas",
+  "estimatedHeadCount": 120,
+  "latitude": -13.6556,
+  "longitude": -73.3878
+}
+
+### 4. Validate the Firebase identity and retrieve local account/memberships.
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "idToken": "{{firebaseIdToken}}"
+}
+
+### 5. Current identity.
+GET {{baseUrl}}/api/v1/auth/me
+Authorization: Bearer {{firebaseIdToken}}
+
+### 6. Ranch access (verify email in Firebase first, then sign in again).
+GET {{baseUrl}}/api/v1/ranch-units/REPLACE_WITH_RANCH_UUID
+Authorization: Bearer {{firebaseIdToken}}

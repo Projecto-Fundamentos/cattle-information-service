@@ -1,0 +1,4 @@
+# Database settings come from DB_URL, DB_USER and DB_PASSWORD.
+app:
+  firebase:
+    project-id: demo-ichu
