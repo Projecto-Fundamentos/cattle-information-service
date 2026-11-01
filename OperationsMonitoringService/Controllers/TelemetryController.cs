@@ -12,7 +12,7 @@ public sealed class TelemetryController(TelemetryIngestionService ingestion) : C
     [ProducesResponseType(typeof(TelemetryIngestResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(TelemetryIngestResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(typeof(ApiError), StatusCodes.Status409Conflict)]
     public async Task<ActionResult<TelemetryIngestResponse>> Ingest(
         [FromBody] TelemetryIngestRequest request,
         CancellationToken cancellationToken)
@@ -24,7 +24,7 @@ public sealed class TelemetryController(TelemetryIngestionService ingestion) : C
         }
         catch (TelemetryConflictException exception)
         {
-            return Conflict(new { error = exception.Message });
+            return Conflict(new ApiError(exception.Message));
         }
     }
 }

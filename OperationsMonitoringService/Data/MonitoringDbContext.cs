@@ -16,9 +16,11 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
             entity.HasIndex(reading => new { reading.DeviceId, reading.RecordedAtUtc }).IsUnique();
             entity.HasIndex(reading => new { reading.CattleId, reading.RecordedAtUtc });
             entity.Property(reading => reading.Origin).HasMaxLength(32);
-            entity.Property(reading => reading.BodyTemperature).HasPrecision(5, 2);
-            entity.Property(reading => reading.ActivityIndex).HasPrecision(5, 2);
-            entity.Property(reading => reading.BatteryLevel).HasPrecision(5, 2);
+            // Unconstrained PostgreSQL numeric retains accepted decimal values exactly.
+            // Rounding them here would make an identical retry look like a conflict.
+            entity.Property(reading => reading.BodyTemperature).HasColumnType("numeric");
+            entity.Property(reading => reading.ActivityIndex).HasColumnType("numeric");
+            entity.Property(reading => reading.BatteryLevel).HasColumnType("numeric");
         });
 
         modelBuilder.Entity<MonitoringAlert>(entity =>
@@ -28,8 +30,8 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
             entity.HasIndex(alert => new { alert.CattleId, alert.Status, alert.StartedAtUtc });
             entity.Property(alert => alert.Type).HasMaxLength(32);
             entity.Property(alert => alert.Status).HasMaxLength(24);
-            entity.Property(alert => alert.ThresholdCelsius).HasPrecision(5, 2);
-            entity.Property(alert => alert.MaximumTemperatureCelsius).HasPrecision(5, 2);
+            entity.Property(alert => alert.ThresholdCelsius).HasColumnType("numeric");
+            entity.Property(alert => alert.MaximumTemperatureCelsius).HasColumnType("numeric");
         });
     }
 }

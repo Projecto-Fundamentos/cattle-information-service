@@ -11,6 +11,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<TelemetryIngestionService>();
+builder.Services.AddScoped<AlertQueryService>();
 builder.Services.AddOptions<MonitoringOptions>()
     .BindConfiguration(MonitoringOptions.SectionName)
     .Validate(options => options.FeverThresholdCelsius is >= 35m and <= 45m,
@@ -37,7 +38,11 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(options => options.ConfigObject.DeepLinking = true);
+    app.UseSwaggerUI(options =>
+    {
+        options.ConfigObject.DeepLinking = true;
+        options.SwaggerEndpoint("/openapi/monitoring.yaml", "ICHU Operations & Monitoring v1.1");
+    });
 }
 else
 {
@@ -79,6 +84,8 @@ app.MapGet("/health", async (MonitoringDbContext database, CancellationToken can
         : Results.Problem("The monitoring database is unavailable.", statusCode: 503));
 
 app.MapControllers();
+app.MapGet("/openapi/monitoring.yaml", () => Results.File(
+    Path.Combine(app.Environment.ContentRootPath, "openapi.yaml"), "application/yaml"));
 app.Run();
 
 public partial class Program;
