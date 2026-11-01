@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Npgsql;
 using OperationsMonitoringService.Contracts;
 using OperationsMonitoringService.Data;
 
@@ -14,7 +15,13 @@ public sealed class TelemetryIngestionService(
         TelemetryIngestRequest request,
         CancellationToken cancellationToken = default)
     {
-        var recordedAtUtc = request.RecordedAt.UtcDateTime;
+        // PostgreSQL timestamps have microsecond resolution. Normalize before both
+        // lookup and persistence, including the in-memory demonstration provider.
+        var utc = request.RecordedAt.UtcDateTime;
+        var recordedAtUtc = utc.AddTicks(-(utc.Ticks % 10));
+        await using var writeScope = await MonitoringWriteScope.BeginAsync(
+            database, request.CattleId, request.DeviceId, recordedAtUtc, cancellationToken);
+
         var existing = await database.Readings.AsNoTracking()
             .FirstOrDefaultAsync(reading => reading.DeviceId == request.DeviceId &&
                 reading.RecordedAtUtc == recordedAtUtc, cancellationToken);
@@ -83,11 +90,14 @@ public sealed class TelemetryIngestionService(
         try
         {
             await database.SaveChangesAsync(cancellationToken);
+            await writeScope.CommitAsync(cancellationToken);
         }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when
+            (exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation })
         {
-            // A retry may race with the first request. Return the persisted reading if
-            // the unique (deviceId, recordedAtUtc) key was the cause of the conflict.
+            // A non-cooperating writer may still race with this process. Roll back
+            // the failed transaction before looking up a committed retry key.
+            await writeScope.RollbackAsync(cancellationToken);
             database.ChangeTracker.Clear();
             existing = await database.Readings.AsNoTracking()
                 .FirstOrDefaultAsync(candidate => candidate.DeviceId == request.DeviceId &&
